@@ -100,15 +100,16 @@ class P4Repo:
 
     def _write_p4config(self):
         """Writes a p4config at the workspace root"""
-        config = {
-            'P4CLIENT': self.perforce.client,
-            'P4USER': self.perforce.user,
-            'P4PORT': self.perforce.port
-        }
+        config = [
+            'P4CLIENT=%s\n' % self.perforce.client,
+            'P4USER=%s\n' %self.perforce.user,
+            'P4PORT=%s\n' % self.perforce.port,
+            'net.autotune=1\n',
+        ]
         if not os.path.exists(self.root):
             os.makedirs(self.root)
         with open(os.path.join(self.root, "p4config"), 'w') as p4config:
-            p4config.writelines(["%s=%s\n" % (k, v) for k, v in config.items()])
+            p4config.writelines(config)
 
     def clean(self):
         """ Perform a p4clean on the workspace to

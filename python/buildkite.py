@@ -16,7 +16,8 @@ __SHELVED_ANNOTATION__ = "Saved shelved change {original} as {copy}"
 def get_env():
     """Get env vars passed in via plugin config"""
     env = {
-        'P4PORT': os.environ.get('P4PORT') or os.environ.get('BUILDKITE_REPO')
+        'P4PORT': os.environ.get('P4PORT') or os.environ.get('BUILDKITE_REPO'),
+        'P4CONFIG': 'p4config',
     }
     for p4var in ['P4PORT', 'P4USER', 'P4TICKETS', 'P4TRUST']:
         plugin_value = os.environ.get('BUILDKITE_PLUGIN_PERFORCE_%s' % p4var)
