@@ -1,17 +1,18 @@
 #!/bin/bash
 set -euo pipefail
 
-
 # P4 Trigger script that triggers buildkite builds
 # Usage:
-# my-pipeline change-commit //depot/... "%//depot/scripts/buildkite-trigger.sh% <organisation> <pipeline> %changelist% %user% %email%"
+# my-pipeline change-commit //depot/... "%//depot/scripts/buildkite-trigger.sh% <pipeline> %changelist% %user% %email%"
 
-ORG_SLUG=$1
-PIPELINE_SLUG=$2
+BUILDKITE_TOKEN="<YOUR_TOKEN>" 
 
-CHANGELIST=$3
-USER=$4
-EMAIL=$5
+ORG_SLUG=improbable
+PIPELINE_SLUG=$1
+
+CHANGELIST=$2
+USER=$3
+EMAIL=$4
 
 DESCRIPTION=$(p4 -Ztag -F %desc% describe %3)
 
