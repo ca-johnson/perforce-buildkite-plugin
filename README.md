@@ -8,6 +8,8 @@ A [Buildkite plugin](https://buildkite.com/docs/agent/v3/plugins) that lets you 
 
 The P4CLIENT, P4USER and P4PORT used by the plugin are written to a [P4CONFIG](https://www.perforce.com/manuals/v16.2/cmdref/P4CONFIG.html) file at the workspace root and the P4CONFIG env var is set, so build scripts are able to automatically pick up configuration for any further interactions with Perforce.
 
+The plugin supports 'portable' workspaces, with the intended use-case being to sync perforce on a machine, save an image and then make multiple instances from that image. The checkout phase notices that this data was synced from a different client by looking at the p4config, then flushes its own client to match the client which synced this data (i.e. tell perforce it already has those revisions). Using this feature, you can avoid doing repetitive large syncs on build agents.
+
 ## Examples
 
 Configuration via env vars:
@@ -34,7 +36,7 @@ steps:
 
 `P4PORT` may also be configured by setting `BUILDKITE_REPO` for your pipeline.
 
-Custom workspace view:
+Custom workspace view.
 
 ```yaml
 steps:
@@ -45,7 +47,7 @@ steps:
         //dev/vendor/... vendor/...
 ```
 
-Workspace view via a p4 stream:
+Workspace view via a p4 stream.
 
 ```yaml
 steps:
@@ -54,7 +56,7 @@ steps:
           stream: //dev/minimal
 ```
 
-Partial sync of a stream
+Partial sync of a stream.
 
 ```yaml
 steps:
@@ -64,7 +66,7 @@ steps:
           sync: //dev/minimal/.buildkite/...
 ```
 
-Enable parallel sync
+Enable parallel sync to speed up syncs over high latency connections.
 
 ```yaml
 steps:
@@ -83,6 +85,7 @@ steps:
           stream: //dev/buildkite
           share_workspace: true
 ```
+
 
 ## Triggering Builds
 
