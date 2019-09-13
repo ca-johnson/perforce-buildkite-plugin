@@ -101,6 +101,7 @@ class P4Repo:
                     if line.startswith('P4CLIENT='))
                 if prev_clientname != clientname:
                     self.perforce.logger.warn("p4config last client was %s, flushing workspace to match" % prev_clientname)
+                    self.perforce.run_client(prev_clientname) # Touch the workspace to update the 'Access' time
                     self.perforce.run_flush(['//...@%s' % prev_clientname])
 
         self._write_p4config()
