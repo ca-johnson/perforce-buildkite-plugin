@@ -4,14 +4,16 @@ Interact with buildkite as part of plugin hooks
 import os
 import sys
 import subprocess
+import re
 from datetime import datetime
 
 __ACCESS_TOKEN__ = os.environ['BUILDKITE_AGENT_ACCESS_TOKEN']
 # https://github.com/buildkite/cli/blob/e8aac4bedf34cd8084a3ae7a4ab7812c611d0310/local/run.go#L403
 __LOCAL_RUN__ = os.environ['BUILDKITE_AGENT_NAME'] == 'local'
 
-__REVISION_METADATA__ = 'buildkite:perforce:revision'
-__SHELVED_METADATA__ = 'buildkite:perforce:shelved'
+__REVISION_METADATA__ = 'buildkite-perforce-revision'
+__REVISION_METADATA_DEPRECATED__ = 'buildkite:perforce:revision' # old metadata key, incompatible with `bk local run`
+__SHELVED_METADATA__ = 'buildkite-perforce-shelved'
 __SHELVED_ANNOTATION__ = "Saved shelved change {original} as {copy}"
 
 def get_env():
@@ -51,7 +53,8 @@ def should_backup_changelists():
 
 def get_metadata(key):
     """If it exists, retrieve metadata from buildkite for a given key"""
-    if not __ACCESS_TOKEN__ or __LOCAL_RUN__:
+    if not __ACCESS_TOKEN__:
+        # Cannot get metadata outside of buildkite context
         return None
 
     if subprocess.call(['buildkite-agent', 'meta-data', 'exists', key]) == 0:
@@ -62,6 +65,7 @@ def set_metadata(key, value, overwrite=False):
         Returns true if data was written
     """
     if not __ACCESS_TOKEN__ or __LOCAL_RUN__:
+        # Cannot set metadata outside of buildkite context, including `bk local run`
         return False
 
     if overwrite or subprocess.call(['buildkite-agent', 'meta-data', 'exists', key]) == 100:
@@ -92,16 +96,28 @@ def set_build_changelist(changelist):
         ])
 
 def get_build_revision():
-    """Get a p4 revision for the build to sync to"""
-    if __LOCAL_RUN__:
-        return 'HEAD'
+    """Get a p4 revision for the build from buildkite context"""
+    revision = get_metadata(__REVISION_METADATA__) or \
+        get_metadata(__REVISION_METADATA_DEPRECATED__) or \
+        os.environ['BUILDKITE_COMMIT']  # HEAD, user-defined revision or git-sha
 
-    return get_metadata(__REVISION_METADATA__) or os.environ['BUILDKITE_COMMIT'] # metadata, HEAD or user-defined value
+    # Convert bare changelist number to revision specifier
+    # Note: Theoretically, its possible for all 40 characters of a git sha to be digits.
+    #       In practice, the inconvenience of forcing users to always include '@' outweighs this risk (~1 in 7 billion)
+    if revision.isdigit():
+        revision = '@%s' % revision
+    # Filter to only valid revision specifiers
+    if revision.startswith('@') or revision.startswith('#'):
+        return revision
+    # Unable to establish a concrete revision for the build
+    return None 
 
 def set_build_revision(revision):
     """Set the p4 revision for following jobs in this build"""
     set_metadata(__REVISION_METADATA__, revision)
+    set_metadata(__REVISION_METADATA_DEPRECATED__, revision)
 
 def set_build_info(revision, description):
     """Set the description and commit number in the UI for this build by mimicking a git repo"""
+    revision = revision.lstrip('@#') # revision must look like a git sha for buildkite to accept it
     set_metadata('buildkite:git:commit', 'commit %s\n\n\t%s' % (revision, description))

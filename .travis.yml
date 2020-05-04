@@ -11,3 +11,5 @@ install:
   - ./ci/install_$TRAVIS_OS_NAME.sh
 script:
   - ./ci/test.sh
+  - ./ci/lint.sh
+  - make local_run

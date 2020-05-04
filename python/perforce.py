@@ -76,6 +76,8 @@ class P4Repo:
         if self.created_client:
             return
         clientname = self._get_clientname()
+        # must be set prior to running any commands to avoid issues with default client names
+        self.perforce.client = clientname
         client = self.perforce.fetch_client(clientname)
         if self.root:
             client._root = self.root
@@ -89,7 +91,6 @@ class P4Repo:
         client._options = self.client_opts + ' clobber'
 
         self.perforce.save_client(client)
-        self.perforce.client = clientname
 
         if not os.path.isfile(self.p4config):
             self.perforce.logger.warning("p4config missing, flushing workspace to revision zero")
@@ -149,15 +150,25 @@ class P4Repo:
     def head(self):
         """Get current head revision"""
         self._setup_client()
-        client_head = self.perforce.run_changes([
-            '-m', '1', '-s', 'submitted', '//%s/...' % self._get_clientname()])
+        # Get head based on client view (e.g. within the stream)
+        client_head = self.head_at_revision('//%s/...' % self._get_clientname())
         if client_head:
-            return client_head[0]['change']
-        # Fallback for when client view has no submitted changes
-        return self.perforce.run_counter("maxCommitChange")[0]['value']
+            return '@' + client_head
+        # Fallback for when client view has no submitted changes, global head revision
+        return '@' + self.perforce.run_counter("maxCommitChange")[0]['value']
+
+    def head_at_revision(self, revision):
+        """Get head submitted changelist at revision specifier"""
+        # Resolve revision specifier like "@labelname" to a concrete submitted change
+        result = self.perforce.run_changes([
+            '-m', '1', '-s', 'submitted', revision
+        ])
+        if not result:
+            return None # Revision spec had no submitted changes
+        return result[0]['change']
 
     def description(self, changelist):
-        """Get description of a given changelist"""
+        """Get description of a given changelist number"""
         return self.perforce.run_describe(str(changelist))[0]['desc']
 
     def sync(self, revision=None):
@@ -177,7 +188,7 @@ class P4Repo:
     def revert(self):
         """Revert any pending changes in the workspace"""
         self._setup_client()
-        self.perforce.run_revert('//...')
+        self.perforce.run_revert('-w', '//...')
         patched = self._read_patched()
         if patched:
             self.perforce.run_clean(patched)
@@ -234,12 +245,17 @@ class P4Repo:
         # Flag these files as modified
         self._write_patched(list(depot_to_local.values()))
 
+        # Turn sync spec info a prefix to filter out unwanted files
+        # e.g. //my-depot/dir/... => //my-depot/dir/
+        sync_prefix = self.sync_paths.rstrip('.')
+
         cmds = []
         for depotfile, localfile in depot_to_local.items():
             if os.path.isfile(localfile):
                 os.chmod(localfile, stat.S_IWRITE)
                 os.unlink(localfile)
-            cmds.append(('print', '-o', localfile, '%s@=%s' % (depotfile, changelist)))
+            if depotfile.startswith(sync_prefix):
+                cmds.append(('print', '-o', localfile, '%s@=%s' % (depotfile, changelist)))
 
         self.run_parallel_cmds(cmds)
 
@@ -262,10 +278,17 @@ class SyncOutput(OutputHandler):
     def __init__(self, logger):
         OutputHandler.__init__(self)
         self.logger = logger
+        self.sync_count = 0
     
     def outputStat(self, stat):
         if 'depotFile' in stat:
-            self.logger.info("%(depotFile)s#%(rev)s %(action)s" % stat)
+            self.sync_count  += 1
+            if self.sync_count < 1000:
+                # Normal, verbose logging of synced file
+                self.logger.info("%(depotFile)s#%(rev)s %(action)s" % stat)
+            elif self.sync_count % 1000 == 0:
+                # Syncing many files, print one message for every 1000 files to reduce log spam
+                self.logger.info("Synced %d files..." % self.sync_count)
         return OutputHandler.REPORT
 
 

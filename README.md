@@ -36,6 +36,8 @@ steps:
 
 ### Custom workspace view:
 
+Note that this must consist of real depot paths like a regular worspace view. You cannot combine streams.
+
 ```yaml
 steps:
   plugins:
@@ -73,7 +75,7 @@ steps:
           parallel: 16
 ```
 
-### Share a stream workspace between pipelines.
+### Share a stream workspace between pipelines
 
 Useful to avoid syncing duplicate data with large workspaces.
 Only allowed when there is a single buildkite agent running on the machine.
@@ -83,7 +85,10 @@ steps:
     plugins:
       - improbable-eng/perforce:
           stream: //dev/buildkite
+           # Sync each stream once
           share_workspace: true
+          # Sync once and switch streams in-place (requires share_workspace: true)
+          stream_switching: true
 ```
 
 ## Triggering Builds
@@ -96,6 +101,7 @@ Relies on people within your team manually clicking `New Build` within the Build
 
 * To build current head revision on the server - accept the defaults.
 * To build a specific revision - paste the revision number into the `Commit` textbox.
+  * Note you can also use more abstract p4 revision specifiers such as `@labelname` or `@datespec`
 * To build a shelved changelist - paste your changelist number into the `Branch` textbox.
 
 ### Schedule
@@ -118,7 +124,12 @@ Run `dev/setup_env_osx.sh`
 
 Python [virtualenv](https://docs.python.org/3/tutorial/venv.html) `.dev-venv` for running tests will be created at repo root.
 
-Run the `test_fixture` unit test to check everything is setup correctly: `pytest test_perforce.py -k test_fixture`
+Run the `test_fixture` unit test to check everything is setup correctly:
+
+```
+source .dev-venv/bin/activate
+pytest python/test_perforce.py -k test_fixture
+```
 
 ### Linux/Windows
 
@@ -128,7 +139,8 @@ TBC, feedback welcome
 
 Making changes to `python/`
 
-* Write unit test in test_perforce.py
+* Read implementation of `test_fixture` in `test_perforce.py`
+* Write unit test in `test_perforce.py`, optionally making changes to the test fixture if required
 * Implement new functionality
 * Iterate via unit test
 
